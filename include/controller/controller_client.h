@@ -17,5 +17,6 @@ namespace controller{
         bool set_destination(const cell_world::Location &);
         bool set_behavior(Behavior);
         Controller_server *local_server = nullptr;
+        virtual ~Controller_client();
     };
 }
