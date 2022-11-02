@@ -91,7 +91,9 @@ namespace controller {
         Controller_server(const std::string &pid_config_file_path,
                           Agent &,
                           Controller_tracking_client &,
-                          Controller_experiment_client &);
+                          Controller_experiment_client &,
+                          cell_world::Location &robot_destination,
+                          cell_world::Location &gravity_adjustment);
 
 
         void controller_process();
@@ -136,6 +138,7 @@ namespace controller {
         Agent &agent;
         Behavior behavior = Explore;
         cell_world::World world;
+        cell_world::World world_paths;
         cell_world::Cell_group cells;
         cell_world::Paths paths;
         cell_world::Map map;
@@ -144,5 +147,8 @@ namespace controller {
         cell_world::Location_visibility navigability;
         Pid_controller pid_controller;
         std::thread process;
+        cell_world::Location &robot_destination;
+        cell_world::Location &gravity_adjustment;
+
     };
 }

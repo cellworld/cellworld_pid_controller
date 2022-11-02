@@ -25,5 +25,6 @@ namespace controller {
         virtual void capture() = 0;
         virtual bool update() = 0;
         virtual bool stop();
+        bool human_intervention = false;
     };
 }

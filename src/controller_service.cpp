@@ -56,17 +56,22 @@ namespace controller {
     Controller_server::Controller_server(const string &pid_config_file_path,
                                          Agent &agent,
                                          Controller_tracking_client &tracking_client,
-                                         Controller_experiment_client &experiment_client):
+                                         Controller_experiment_client &experiment_client,
+                                         Location &robot_destination,
+                                         Location &gravity_adjustment):
             agent(agent),
             world(World::get_from_parameters_name("hexagonal", "canonical")),
+            world_paths(World::get_from_parameters_name("hexagonal", "canonical")),
             cells(world.create_cell_group()),
             paths(world.create_paths(Resources::from("paths").key("hexagonal").key("00_00").key("astar").get_resource<Path_builder>())),
             map(cells),
-            navigability(cells, world.cell_shape,Transformation(world.cell_transformation.size, world.cell_transformation.rotation)),
-            pid_controller (Json_from_file<Pid_parameters>(pid_config_file_path)),
+            navigability(cells, world.cell_shape, world.cell_transformation),
+            pid_controller(Json_from_file<Pid_parameters>(pid_config_file_path)),
             tracking_client(tracking_client),
             destination_timer(0),
-            experiment_client(experiment_client)
+            experiment_client(experiment_client),
+            robot_destination(robot_destination),
+            gravity_adjustment(gravity_adjustment)
     {
         tracking_client.controller_server = this;
         experiment_client.controller_server = this;
@@ -76,9 +81,19 @@ namespace controller {
         process = thread(&Controller_server::controller_process, this);
     }
 
+#define progress_translation 0.003375
+#define progress_rotation 1.25
+#define progress_time 0.25
+
+    Location progress_marker_translation;
+    float progress_marker_rotation;
+    Timer progress_timer(progress_time);
+
     void Controller_server::controller_process() {                      // setting robot velocity
         state = Controller_state::Playing;
         Pid_inputs pi;
+        Timer msg(1);
+        bool human_intervention = false;
         while(state != Controller_state::Stopped){
             robot_mtx.lock();
             if (this->tracking_client.capture.cool_down.time_out()){
@@ -89,70 +104,115 @@ namespace controller {
                     agent.set_left(0);
                     agent.set_right(0);
                     agent.update();
+                    progress_timer.reset();
                 } else {
                     //PID controller
                     pi.location = tracking_client.agent.step.location;
                     pi.rotation = tracking_client.agent.step.rotation;
-                    pi.destination = get_next_stop();
-                    auto dist = destination.dist(pi.location);
-                    if (dist < world.cell_transformation.size / 2) {
-                        agent.set_left(0);
-                        agent.set_right(0);
+                    auto theta_diff = to_degrees(angle_difference(to_radians(progress_marker_rotation),to_radians(pi.rotation)));
+//                    if (msg.time_out()) {
+//                        msg.reset();
+//                        cout << "progress_marker: " << progress_marker << endl;
+//                        cout << "location: " << pi.location << endl;
+//                        cout << "distance: " << pi.location.dist(progress_marker) << endl;
+//                        cout << "progress_marker_theta: " << progress_marker_theta << endl;
+//                        cout << "rotation: " << pi.rotation << endl;
+//                        cout << "diff: " << theta_diff << endl;
+//                        cout << "time since progress:" << progress_timer.to_seconds() << endl;
+//                    }
+                    if (pi.location.dist(progress_marker_translation) > progress_translation ||
+                            theta_diff > progress_rotation) {
+                        progress_marker_rotation = pi.rotation;
+                        progress_marker_translation = pi.location;
+                        progress_timer.reset();
+                    }
+                    if (progress_timer.time_out()){
+                        cout << "I think I am stuck - backing up" << endl;
+                        progress_timer.reset();
+                        agent.set_left(-20);
+                        agent.set_right(-20);
                         agent.update();
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                        pi.location = tracking_client.agent.step.location;
+                        pi.rotation = tracking_client.agent.step.rotation;
+                        progress_marker_rotation = pi.rotation;
+                        progress_marker_translation = pi.location;
                     } else {
-                        auto robot_command = pid_controller.process(pi, behavior);
-                        agent.set_left(robot_command.left);
-                        agent.set_right(robot_command.right);
-                        agent.update();
+                        pi.destination = get_next_stop();
+                        auto dist = destination.dist(pi.location);
+                        if (dist < world.cell_transformation.size / 2) {
+                            agent.set_left(0);
+                            agent.set_right(0);
+                            agent.update();
+                        } else {
+                            auto robot_command = pid_controller.process(pi, behavior);
+                            agent.set_left(robot_command.left);
+                            agent.set_right(robot_command.right);
+                            if (agent.human_intervention!=human_intervention){
+                                agent.human_intervention = human_intervention;
+                                experiment_client.human_intervention(agent.human_intervention);
+                            }
+                            agent.update();
+                        }
                     }
                 }
             }
             robot_mtx.unlock();
             //prevents overflowing the robot ( max 10 commands per second)
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
         }
     }
 
     bool Controller_server::set_destination(const cell_world::Location &new_destination) {
-        cout << "New destination: " << new_destination << endl;
+        //cout << "New destination: " << new_destination << endl;
         destination = new_destination;
         destination_timer = Timer(5);
         new_destination_data = true;
         return true;
     }
 
-#define goal_weight 0
-#define occlusion_weight 0.0001 //was 0.0001
-#define decay 2
+#define goal_weight 0.00000005
+#define occlusion_weight 0.000005 //0.0001 //.0001 //was 0.0001
+#define decay 3 //2 //5 //2
+#define gravity_threshold .3
+#define gravity_change_limit .05
+
 
     cell_world::Location Controller_server::get_next_stop() {
         auto agent_location = tracking_client.agent.step.location;
-        if (navigability.is_visible(agent_location, destination)) {
-            return destination;
-        }
         auto destination_cell_index = cells.find(destination);
         auto next_stop_test = cells.find(agent_location);
         auto next_stop = next_stop_test;
-        while (navigability.is_visible(agent_location, cells[next_stop_test].location)){
-            next_stop = next_stop_test;
-            auto move = paths.get_move(cells[next_stop], cells[destination_cell_index]);
-            if (move == Move{0,0}) break;
-            next_stop_test = cells.find(map[cells[next_stop].coordinates + move]);
+        if (navigability.is_visible(agent_location, destination)) {
+            next_stop = destination_cell_index;
+        } else {
+            while (navigability.is_visible(agent_location, cells[next_stop_test].location)) {
+                next_stop = next_stop_test;
+                auto move = paths.get_move(cells[next_stop], cells[destination_cell_index]);
+                if (move == Move{0, 0}) break;
+                next_stop_test = cells.find(map[cells[next_stop].coordinates + move]);
+            }
         }
 
         auto total_gravity_change = Location(0,0);
         for (auto &cell_r : cells.occluded_cells()) {
             Cell cell = cell_r.get();
             auto distance = cell.location.dist(agent_location);
+            if (distance > gravity_threshold) continue;
             auto theta = cell.location.atan(agent_location);
             auto gravity = occlusion_weight / pow(distance,decay);
             total_gravity_change = total_gravity_change.move(theta, gravity);
         }
-        auto distance = cells[next_stop].location.dist(agent_location);
+        auto goal_distance = cells[next_stop].location.dist(agent_location);
         auto theta = agent_location.atan(cells[next_stop].location);
-        auto gravity = goal_weight / pow(distance,decay);
+        auto gravity = goal_weight / pow(goal_distance,decay);
         total_gravity_change = total_gravity_change.move(theta, gravity);
+        if (total_gravity_change.mod()> gravity_change_limit) {
+            total_gravity_change = total_gravity_change / total_gravity_change.mod() * gravity_change_limit;
+        }
 
+        robot_destination = cells[next_stop].location;
+        gravity_adjustment = total_gravity_change;
         return cells[next_stop].location + total_gravity_change;
     }
 
@@ -176,8 +236,11 @@ namespace controller {
         auto occlusions_cgb = Resources::from("cell_group").key("hexagonal").key(occlusions).key("occlusions").get_resource<Cell_group_builder>();
         world.set_occlusions(occlusions_cgb);
         cells = world.create_cell_group();
+        auto occlusions_cgb_paths = Resources::from("cell_group").key("hexagonal").key(occlusions).key("occlusions").key("robot").get_resource<Cell_group_builder>();
+        world_paths.set_occlusions(occlusions_cgb_paths);
+        auto occlusions_path = world_paths.create_cell_group(occlusions_cgb_paths);
         paths = Paths(world.create_paths(Resources::from("paths").key("hexagonal").key(occlusions).key("astar").key("robot").get_resource<Path_builder>()));
-        navigability = Location_visibility(cells, world.cell_shape,Transformation(world.cell_transformation.size * (1 + margin), world.cell_transformation.rotation)); // robot size
+        navigability = Location_visibility(occlusions_path, world.cell_shape,Transformation(world.cell_transformation.size * (1 + margin), world.cell_transformation.rotation)); // robot size
         tracking_client.visibility.update_occlusions(cells);
     }
 
