@@ -81,9 +81,9 @@ namespace controller {
         process = thread(&Controller_server::controller_process, this);
     }
 
-#define progress_translation 0.003375
-#define progress_rotation 1.25
-#define progress_time 0.25
+#define progress_translation 0.00675
+#define progress_rotation 2.5
+#define progress_time 0.5
 
     Location progress_marker_translation;
     float progress_marker_rotation;
