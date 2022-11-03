@@ -58,6 +58,7 @@ namespace controller {
                                          Controller_tracking_client &tracking_client,
                                          Controller_experiment_client &experiment_client,
                                          Location &robot_destination,
+                                         Location &robot_normalized_destination,
                                          Location &gravity_adjustment):
             agent(agent),
             world(World::get_from_parameters_name("hexagonal", "canonical")),
@@ -71,6 +72,7 @@ namespace controller {
             destination_timer(0),
             experiment_client(experiment_client),
             robot_destination(robot_destination),
+            robot_normalized_destination(robot_normalized_destination),
             gravity_adjustment(gravity_adjustment)
     {
         tracking_client.controller_server = this;
@@ -171,11 +173,10 @@ namespace controller {
         return true;
     }
 
-#define goal_weight 0.00000005
-#define occlusion_weight 0.000005 //0.0001 //.0001 //was 0.0001
-#define decay 3 //2 //5 //2
-#define gravity_threshold .3
-#define gravity_change_limit .05
+    #define goal_weight 0.0
+    #define occlusion_weight 0.0015 // 0.000075 //0.00005
+    #define decay 2 //2 //5 //2
+    #define gravity_threshold .15
 
 
     cell_world::Location Controller_server::get_next_stop() {
@@ -193,12 +194,20 @@ namespace controller {
                 next_stop_test = cells.find(map[cells[next_stop].coordinates + move]);
             }
         }
+        robot_destination = cells[next_stop].location;
+        auto destination_theta = agent_location.atan(robot_destination);
+        auto translation = robot_destination - agent_location;
+        auto translation_magnitude = translation.mod();
+        auto normalized_translation = translation / translation_magnitude;
+        robot_normalized_destination = agent_location + normalized_translation * world.cell_transformation.size;
 
         auto total_gravity_change = Location(0,0);
         for (auto &cell_r : cells.occluded_cells()) {
             Cell cell = cell_r.get();
             auto distance = cell.location.dist(agent_location);
             if (distance > gravity_threshold) continue;
+            auto occlusion_theta = agent_location.atan(cell.location);
+            if (angle_difference(occlusion_theta,destination_theta)>M_PI / 2) continue;
             auto theta = cell.location.atan(agent_location);
             auto gravity = occlusion_weight / pow(distance,decay);
             total_gravity_change = total_gravity_change.move(theta, gravity);
@@ -207,13 +216,14 @@ namespace controller {
         auto theta = agent_location.atan(cells[next_stop].location);
         auto gravity = goal_weight / pow(goal_distance,decay);
         total_gravity_change = total_gravity_change.move(theta, gravity);
-        if (total_gravity_change.mod()> gravity_change_limit) {
-            total_gravity_change = total_gravity_change / total_gravity_change.mod() * gravity_change_limit;
+        if (total_gravity_change.mod() > 1) {
+            total_gravity_change = total_gravity_change / total_gravity_change.mod();
         }
+        gravity_adjustment = total_gravity_change * world.cell_transformation.size;
 
-        robot_destination = cells[next_stop].location;
-        gravity_adjustment = total_gravity_change;
-        return cells[next_stop].location + total_gravity_change;
+        auto normalized_updated_translation = normalized_translation + total_gravity_change;
+        auto updated_translation = normalized_updated_translation * translation_magnitude;
+        return agent_location + updated_translation;
     }
 
     bool Controller_server::pause() {

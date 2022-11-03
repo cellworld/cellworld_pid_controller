@@ -62,7 +62,7 @@ namespace controller{
     }
 
     double Pid_controller::normalize_error(double error){
-        double pi_err = M_PI * error;
+        double pi_err = M_PI * error / 2;
         return 1 / ( pi_err * pi_err + 1 );
     }
 

@@ -93,6 +93,7 @@ namespace controller {
                           Controller_tracking_client &,
                           Controller_experiment_client &,
                           cell_world::Location &robot_destination,
+                          cell_world::Location &robot_normalized_destination,
                           cell_world::Location &gravity_adjustment);
 
 
@@ -148,6 +149,7 @@ namespace controller {
         Pid_controller pid_controller;
         std::thread process;
         cell_world::Location &robot_destination;
+        cell_world::Location &robot_normalized_destination;
         cell_world::Location &gravity_adjustment;
 
     };
