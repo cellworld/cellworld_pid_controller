@@ -201,26 +201,21 @@ namespace controller {
         auto normalized_translation = translation / translation_magnitude;
         robot_normalized_destination = agent_location + normalized_translation * world.cell_transformation.size;
 
-        auto total_gravity_change = Location(0,0);
+        float total_gravity = 0;
         for (auto &cell_r : cells.occluded_cells()) {
             Cell cell = cell_r.get();
             auto distance = cell.location.dist(agent_location);
             if (distance > gravity_threshold) continue;
             auto occlusion_theta = agent_location.atan(cell.location);
-            if (angle_difference(occlusion_theta,destination_theta)>M_PI / 2) continue;
-            auto theta = cell.location.atan(agent_location);
-            auto gravity = occlusion_weight / pow(distance,decay);
-            total_gravity_change = total_gravity_change.move(theta, gravity);
+            if (angle_difference(occlusion_theta,destination_theta) > M_PI / 2) continue;
+            auto occlusion_direction = direction(destination_theta, occlusion_theta);
+            auto occlusion_gravity = occlusion_weight / pow(distance,decay);
+            total_gravity += occlusion_gravity * occlusion_direction;
+            cout << occlusion_gravity << "," << occlusion_direction << endl;
         }
-        auto goal_distance = cells[next_stop].location.dist(agent_location);
-        auto theta = agent_location.atan(cells[next_stop].location);
-        auto gravity = goal_weight / pow(goal_distance,decay);
-        total_gravity_change = total_gravity_change.move(theta, gravity);
-        if (total_gravity_change.mod() > 1) {
-            total_gravity_change = total_gravity_change / total_gravity_change.mod();
-        }
+        if (total_gravity > 1) total_gravity = 1;
+        auto total_gravity_change = Location(0,0).move(destination_theta + M_PI / 2, total_gravity);
         gravity_adjustment = total_gravity_change * world.cell_transformation.size;
-
         auto normalized_updated_translation = normalized_translation + total_gravity_change;
         auto updated_translation = normalized_updated_translation * translation_magnitude;
         return agent_location + updated_translation;
