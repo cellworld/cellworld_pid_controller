@@ -211,7 +211,7 @@ namespace controller {
             auto occlusion_direction = direction(destination_theta, occlusion_theta);
             auto occlusion_gravity = occlusion_weight / pow(distance,decay);
             total_gravity += occlusion_gravity * occlusion_direction;
-            cout << occlusion_gravity << "," << occlusion_direction << endl;
+//            cout << occlusion_gravity << "," << occlusion_direction << endl;
         }
         if (total_gravity > 1) total_gravity = 1;
         auto total_gravity_change = Location(0,0).move(destination_theta + M_PI / 2, total_gravity);
