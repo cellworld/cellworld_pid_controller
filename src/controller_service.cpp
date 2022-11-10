@@ -143,6 +143,7 @@ namespace controller {
                         pi.destination = get_next_stop();
                         auto dist = destination.dist(pi.location);
                         if (dist < world.cell_transformation.size / 2) {
+                            cout << "DISTANCE CPP BUFFER: " << endl;
                             agent.set_left(0);
                             agent.set_right(0);
                             agent.update();
@@ -182,16 +183,28 @@ namespace controller {
     cell_world::Location Controller_server::get_next_stop() {
         auto agent_location = tracking_client.agent.step.location;
         auto destination_cell_index = cells.find(destination);
-        auto next_stop_test = cells.find(agent_location);
-        auto next_stop = next_stop_test;
+        auto agent_cell_id = cells.find(agent_location);
+        auto next_stop_test = agent_cell_id;
+        auto next_stop = agent_cell_id;
         if (navigability.is_visible(agent_location, destination)) {
             next_stop = destination_cell_index;
         } else {
             while (navigability.is_visible(agent_location, cells[next_stop_test].location)) {
                 next_stop = next_stop_test;
                 auto move = paths.get_move(cells[next_stop], cells[destination_cell_index]);
-                if (move == Move{0, 0}) break;
+                if (move == Move{0, 0}) {
+                    cout << agent_location << endl;
+                    cout << cells[next_stop].location << endl;
+                    cout << cells[destination_cell_index].location << endl;
+                    cout << "BREAK" << endl;
+                    break;
+                }
                 next_stop_test = cells.find(map[cells[next_stop].coordinates + move]);
+            }
+            if ((next_stop == agent_cell_id) && (next_stop != destination_cell_index)) {
+                // no gravity
+                cout << "german rules! Gabbie rules!" << endl;
+                next_stop = next_stop_test; // this does not make sense maybe just ignore grav in this case
             }
         }
         robot_destination = cells[next_stop].location;
