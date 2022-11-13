@@ -182,32 +182,24 @@ namespace controller {
 
     cell_world::Location Controller_server::get_next_stop() {
         auto agent_location = tracking_client.agent.step.location;
-        auto destination_cell_index = cells.find(destination);
-        auto agent_cell_id = cells.find(agent_location);
+        auto destination_cell_index = free_cells.find(destination);
+
+
+        auto agent_cell_id = free_cells.find(agent_location);
         auto next_stop_test = agent_cell_id;
         auto next_stop = agent_cell_id;
         if (navigability.is_visible(agent_location, destination)) {
             next_stop = destination_cell_index;
         } else {
-            while (navigability.is_visible(agent_location, cells[next_stop_test].location)) {
+            while (navigability.is_visible(agent_location, free_cells[next_stop_test].location)) {
                 next_stop = next_stop_test;
-                auto move = paths.get_move(cells[next_stop], cells[destination_cell_index]);
-                if (move == Move{0, 0}) {
-                    cout << agent_location << endl;
-                    cout << cells[next_stop].location << endl;
-                    cout << cells[destination_cell_index].location << endl;
-                    cout << "BREAK" << endl;
-                    break;
-                }
-                next_stop_test = cells.find(map[cells[next_stop].coordinates + move]);
-            }
-            if ((next_stop == agent_cell_id) && (next_stop != destination_cell_index)) {
-                // no gravity
-                cout << "german rules! Gabbie rules!" << endl;
-                next_stop = next_stop_test; // this does not make sense maybe just ignore grav in this case
+                auto move = paths.get_move(free_cells[next_stop], free_cells[destination_cell_index]);
+
+                if (move == Move{0, 0}) break;
+                next_stop_test = free_cells.find(map[free_cells[next_stop].coordinates + move]);
             }
         }
-        robot_destination = cells[next_stop].location;
+        robot_destination = free_cells[next_stop].location;
         auto destination_theta = agent_location.atan(robot_destination);
         auto translation = robot_destination - agent_location;
         auto translation_magnitude = translation.mod();
@@ -256,6 +248,7 @@ namespace controller {
         cells = world.create_cell_group();
         auto occlusions_cgb_paths = Resources::from("cell_group").key("hexagonal").key(occlusions).key("occlusions").key("robot").get_resource<Cell_group_builder>();
         world_paths.set_occlusions(occlusions_cgb_paths);
+        free_cells = world_paths.create_cell_group().free_cells();
         auto occlusions_path = world_paths.create_cell_group(occlusions_cgb_paths);
         paths = Paths(world.create_paths(Resources::from("paths").key("hexagonal").key(occlusions).key("astar").key("robot").get_resource<Path_builder>()));
         navigability = Location_visibility(occlusions_path, world.cell_shape,Transformation(world.cell_transformation.size * (1 + margin), world.cell_transformation.rotation)); // robot size
