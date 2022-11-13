@@ -64,6 +64,7 @@ namespace controller {
             world(World::get_from_parameters_name("hexagonal", "canonical")),
             world_paths(World::get_from_parameters_name("hexagonal", "canonical")),
             cells(world.create_cell_group()),
+            free_cells(world_paths.create_cell_group().free_cells()), // TODO: make sure this works
             paths(world.create_paths(Resources::from("paths").key("hexagonal").key("00_00").key("astar").get_resource<Path_builder>())),
             map(cells),
             navigability(cells, world.cell_shape, world.cell_transformation),
