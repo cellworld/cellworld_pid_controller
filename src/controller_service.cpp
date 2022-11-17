@@ -101,7 +101,7 @@ namespace controller {
             robot_mtx.lock();
             if (this->tracking_client.capture.cool_down.time_out()){
             // if there is no information from the tracker
-                if (!tracking_client.agent.is_valid() ||
+                if (!tracking_client.agent.is_valid() ||  // leds will turn off when not connects
                     state == Controller_state::Paused ||
                     destination_timer.time_out()){
                     agent.set_left(0);
