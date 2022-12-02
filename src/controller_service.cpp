@@ -107,6 +107,7 @@ namespace controller {
                     agent.set_left(0);
                     agent.set_right(0);
                     agent.update();
+                    // todo: add sleep here??
                     progress_timer.reset();
                 } else {
                     //PID controller
