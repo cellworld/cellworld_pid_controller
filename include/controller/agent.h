@@ -24,6 +24,7 @@ namespace controller {
         virtual void set_right(double) = 0;
         virtual void capture() = 0;
         virtual bool update() = 0;
+        virtual void end_capture() = 0;
         virtual bool stop();
         bool human_intervention = false;
     };
