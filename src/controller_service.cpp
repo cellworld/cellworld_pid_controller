@@ -61,11 +61,11 @@ namespace controller {
                                          Location &robot_normalized_destination,
                                          Location &gravity_adjustment):
             agent(agent),
-            world(World::get_from_parameters_name("hexagonal", "canonical")),
+            world(World::get_from_parameters_name("hexagonal", "canonical")),  // delete specified occludiond
             world_paths(World::get_from_parameters_name("hexagonal", "canonical")),
             cells(world.create_cell_group()),
             free_cells(world_paths.create_cell_group().free_cells()),
-            paths(world.create_paths(Resources::from("paths").key("hexagonal").key("00_00").key("astar").get_resource<Path_builder>())),
+            paths(world.create_paths(Resources::from("paths").key("hexagonal").key("00_00").key("astar").get_resource<Path_builder>())),  // CHANGE BACK TO 00
             map(cells),
             navigability(cells, world.cell_shape, world.cell_transformation),
             pid_controller(Json_from_file<Pid_parameters>(pid_config_file_path)),
@@ -93,6 +93,8 @@ namespace controller {
     Timer progress_timer(progress_time);
 
     void Controller_server::controller_process() {                      // setting robot velocity
+        // DELETE NEXT LINE
+        set_occlusions("21_05");
         state = Controller_state::Playing;
         Pid_inputs pi;
         Timer msg(1);
