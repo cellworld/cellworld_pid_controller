@@ -51,7 +51,17 @@ namespace controller {
         }
     }
 
-
+    Controller_server::Controller_server(const string &pid_config_file_path,
+                                         Agent &agent,
+                                         Controller_tracking_client &tracking_client,
+                                         Controller_experiment_client &experiment_client):
+            Controller_server(pid_config_file_path,
+                              agent,
+                              tracking_client,
+                              experiment_client,
+                              local_robot_destination,
+                              local_robot_normalized_destination,
+                              local_gravity_adjustment) {}
 
     Controller_server::Controller_server(const string &pid_config_file_path,
                                          Agent &agent,
@@ -93,8 +103,7 @@ namespace controller {
     Timer progress_timer(progress_time);
 
     void Controller_server::controller_process() {                      // setting robot velocity
-        // DELETE NEXT LINE
-        set_occlusions("21_05");
+        set_occlusions("21_05"); // DELETE ONCE EXPERIMENT SERVER ON
         state = Controller_state::Playing;
         Pid_inputs pi;
         Timer msg(1);
