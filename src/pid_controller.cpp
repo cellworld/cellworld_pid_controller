@@ -9,7 +9,7 @@ namespace controller{
 
     Pid_outputs Pid_controller::process(const Pid_inputs &inputs, Behavior behavior) {
         double speed, P_value, I_value, D_value;
-        double t = timer.to_seconds() * 30;
+        double t = timer.to_seconds(); //* 30;
         timer.reset();
         if (behavior==Explore){
             //cout << "E";
@@ -31,10 +31,10 @@ namespace controller{
         error = angle_difference(theta, destination_theta) * direction(theta, destination_theta);
 
         normalized_error = normalize_error(error);
-        error_derivative = t * (last_error - error);
+        error_derivative = (last_error - error)/t;
+
         last_error = error;
         error_integral += error * t;
-
         // eliminate integral windup (100)
         if (error_integral > 100) {
             error_integral = 100;
