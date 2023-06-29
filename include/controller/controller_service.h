@@ -87,6 +87,10 @@ namespace controller {
             cell_world::Capture capture;
             cell_world::Peeking peeking;
         } &tracking_client;
+        Controller_server(const std::string &pid_config_file_path,
+                          Agent &,
+                          Controller_tracking_client &,
+                          Controller_experiment_client &);
 
         Controller_server(const std::string &pid_config_file_path,
                           Agent &,
@@ -152,6 +156,9 @@ namespace controller {
         cell_world::Location &robot_destination;
         cell_world::Location &robot_normalized_destination;
         cell_world::Location &gravity_adjustment;
+        cell_world::Location local_robot_destination;
+        cell_world::Location local_robot_normalized_destination;
+        cell_world::Location local_gravity_adjustment;
 
     };
 }

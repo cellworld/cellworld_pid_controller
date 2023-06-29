@@ -51,7 +51,17 @@ namespace controller {
         }
     }
 
-
+    Controller_server::Controller_server(const string &pid_config_file_path,
+                                         Agent &agent,
+                                         Controller_tracking_client &tracking_client,
+                                         Controller_experiment_client &experiment_client):
+            Controller_server(pid_config_file_path,
+                              agent,
+                              tracking_client,
+                              experiment_client,
+                              local_robot_destination,
+                              local_robot_normalized_destination,
+                              local_gravity_adjustment) {}
 
     Controller_server::Controller_server(const string &pid_config_file_path,
                                          Agent &agent,
@@ -61,11 +71,11 @@ namespace controller {
                                          Location &robot_normalized_destination,
                                          Location &gravity_adjustment):
             agent(agent),
-            world(World::get_from_parameters_name("hexagonal", "canonical")),
+            world(World::get_from_parameters_name("hexagonal", "canonical")),  // delete specified occludiond
             world_paths(World::get_from_parameters_name("hexagonal", "canonical")),
             cells(world.create_cell_group()),
             free_cells(world_paths.create_cell_group().free_cells()),
-            paths(world.create_paths(Resources::from("paths").key("hexagonal").key("00_00").key("astar").get_resource<Path_builder>())),
+            paths(world.create_paths(Resources::from("paths").key("hexagonal").key("00_00").key("astar").get_resource<Path_builder>())),  // CHANGE BACK TO 00
             map(cells),
             navigability(cells, world.cell_shape, world.cell_transformation),
             pid_controller(Json_from_file<Pid_parameters>(pid_config_file_path)),
@@ -93,6 +103,7 @@ namespace controller {
     Timer progress_timer(progress_time);
 
     void Controller_server::controller_process() {                      // setting robot velocity
+        set_occlusions("21_05"); // DELETE ONCE EXPERIMENT SERVER ON
         state = Controller_state::Playing;
         Pid_inputs pi;
         Timer msg(1);
