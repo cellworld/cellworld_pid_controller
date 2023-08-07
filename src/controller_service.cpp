@@ -96,14 +96,14 @@ namespace controller {
 
 #define progress_translation 0.00675
 #define progress_rotation 2.5
-#define progress_time 0.5
+#define progress_time 3.0  // changed this for open field was 0.5
 
     Location progress_marker_translation;
     float progress_marker_rotation;
     Timer progress_timer(progress_time);
 
     void Controller_server::controller_process() {                      // setting robot velocity
-        set_occlusions("21_05"); // DELETE ONCE EXPERIMENT SERVER ON
+//        set_occlusions("21_05"); // DELETE ONCE EXPERIMENT SERVER ON
         state = Controller_state::Playing;
         Pid_inputs pi;
         Timer msg(1);
@@ -155,13 +155,18 @@ namespace controller {
                     } else {
                         pi.destination = get_next_stop();
                         auto dist = destination.dist(pi.location);
-                        if (dist < world.cell_transformation.size / 2) {
+                        // change this so that dist is capture radius (dist < world.cell_transformation.size / 2)
+                        // ((dist < world.cell_transformation.size / 2) || (behavior == Pursue  and dist <= world.cell_transformation.size * 2.5) || (tracking_client.adversary.timer.time_out()))
+                        if ((dist < world.cell_transformation.size / 2) || (behavior == Pursue  and dist <= world.cell_transformation.size * 2.5)) {
                             cout << "DISTANCE CPP BUFFER: " << endl;
+                            cout << "IN CAPTURE RADIUS" << endl;
+                            progress_timer.reset();
                             agent.set_left(0);
                             agent.set_right(0);
                             agent.update();
                         } else {
                             auto robot_command = pid_controller.process(pi, behavior);
+                            //cout << robot_command.left << " " << robot_command.right << endl;
                             agent.set_left(robot_command.left);
                             agent.set_right(robot_command.right);
                             if (agent.human_intervention!=human_intervention){
@@ -301,8 +306,22 @@ namespace controller {
             adversary.timer = Timer(.5);
             if (contains_agent_state(agent.agent_name)) {
                 auto predator = get_current_state(agent.agent_name);
+
+                if (visibility.is_visible(predator.location, step.location) &&
+                    to_degrees(angle_difference(predator.location.atan(step.location), to_radians(predator.rotation))) < view_angle / 2) {
+                    if (peeking.is_seen(predator.location, step.location)) {
+                        if (adversary.last_update.to_seconds()>.1) {
+                            controller_server->send_step(step);
+                            adversary.last_update.reset();
+                        }
+                    }
+                } else {
+                    peeking.not_visible();
+                }
+
                 robot_mtx.lock();
                     auto is_captured = capture.is_captured( predator.location, to_radians(predator.rotation), step.location);
+                    //controller_server.need_capture = true;
                     if (is_captured) {
                         controller_server->agent.set_left(0);
                         controller_server->agent.set_right(0);
@@ -315,17 +334,6 @@ namespace controller {
                         controller_server->send_capture(step.frame);
                     }
                 robot_mtx.unlock();
-                if (visibility.is_visible(predator.location, step.location) &&
-                        to_degrees(angle_difference(predator.location.atan(step.location), to_radians(predator.rotation))) < view_angle / 2) {
-                    if (peeking.is_seen(predator.location, step.location)) {
-                        if (adversary.last_update.to_seconds()>.1) {
-                            controller_server->send_step(step);
-                            adversary.last_update.reset();
-                        }
-                    }
-                } else {
-                    peeking.not_visible();
-                }
             }
         }
         Tracking_client::on_step(step);
