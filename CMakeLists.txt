@@ -34,7 +34,7 @@ install_git_dependency(Cellworld https://github.com/germanespinosa/cellworld
 install_git_dependency(Easy-tcp https://github.com/germanespinosa/easy-tcp
         CMAKE_PROJECT
         IMPORT_TARGETS easy-tcp)
-install_git_dependency(Tcp_messages https://github.com/germanespinosa/tcp-messages
+install_git_dependency(Tcp_messages https://github.com/cellworld-neuro/dependency_tcp-messages
         CMAKE_PROJECT
         IMPORT_TARGETS tcp_messages)
 install_git_dependency(Agent_tracking https://github.com/germanespinosa/agent_tracking
