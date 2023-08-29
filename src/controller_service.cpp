@@ -96,14 +96,14 @@ namespace controller {
 
 #define progress_translation 0.00675
 #define progress_rotation 2.5
-#define progress_time 3.0  // changed this for open field was 0.5
+#define progress_time 0.5  // changed this for open field was 0.5  // open field 3.0
 
     Location progress_marker_translation;
     float progress_marker_rotation;
     Timer progress_timer(progress_time);
 
     void Controller_server::controller_process() {                      // setting robot velocity
-//        set_occlusions("21_05"); // DELETE ONCE EXPERIMENT SERVER ON
+        set_occlusions("21_05"); // DELETE ONCE EXPERIMENT SERVER ON
         state = Controller_state::Playing;
         Pid_inputs pi;
         Timer msg(1);
@@ -157,13 +157,13 @@ namespace controller {
                         auto dist = destination.dist(pi.location);
                         // change this so that dist is capture radius (dist < world.cell_transformation.size / 2)
                         // ((dist < world.cell_transformation.size / 2) || (behavior == Pursue  and dist <= world.cell_transformation.size * 2.5) || (tracking_client.adversary.timer.time_out()))
-                        if ((dist < world.cell_transformation.size / 2) || (behavior == Pursue  and dist <= world.cell_transformation.size * 2.5)) {
-                            cout << "DISTANCE CPP BUFFER: " << endl;
+                        if ((behavior == Pursue  and dist <= world.cell_transformation.size * 2.5)) {  // for open field
+//                            cout << "DISTANCE CPP BUFFER: " << endl;
                             cout << "IN CAPTURE RADIUS" << endl;
-                            progress_timer.reset();
-                            agent.set_left(0);
-                            agent.set_right(0);
-                            agent.update();
+//                            progress_timer.reset();
+//                            agent.set_left(0);
+//                            agent.set_right(0);
+//                            agent.update();
                         } else {
                             auto robot_command = pid_controller.process(pi, behavior);
                             //cout << robot_command.left << " " << robot_command.right << endl;
@@ -180,7 +180,8 @@ namespace controller {
             }
             robot_mtx.unlock();
             //prevents overflowing the robot ( max 10 commands per second)
-            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+//            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     }
 
@@ -193,13 +194,19 @@ namespace controller {
     }
 
     #define goal_weight 0.0
-    #define occlusion_weight 0.0015 // 0.000075 //0.00005
+    #define occlusion_weight 0.0015 //0.0015
     #define decay 2 //2 //5 //2
-    #define gravity_threshold .15
+    #define gravity_threshold .3
 
+
+    double normalize_error(double error){
+        double pi_err =  M_PI * error / 2;
+        return 1 / ( (pi_err * pi_err) + 1 );
+    }
 
     cell_world::Location Controller_server::get_next_stop() {
         auto agent_location = tracking_client.agent.step.location;
+        auto agent_theta = to_radians(tracking_client.agent.step.rotation);
         auto destination_cell_index = free_cells.find(destination);
 
 
@@ -230,9 +237,11 @@ namespace controller {
             auto distance = cell.location.dist(agent_location);
             if (distance > gravity_threshold) continue;
             auto occlusion_theta = agent_location.atan(cell.location);
-            if (angle_difference(occlusion_theta,destination_theta) > M_PI / 2) continue;
+            auto err = angle_difference(occlusion_theta,agent_theta);
+            if (err > M_PI / 2) continue;
+            auto normalized_error = normalize_error(err);
             auto occlusion_direction = direction(destination_theta, occlusion_theta);
-            auto occlusion_gravity = occlusion_weight / pow(distance,decay);
+            auto occlusion_gravity = normalized_error * occlusion_weight / pow(distance,decay);
             total_gravity += occlusion_gravity * occlusion_direction;
 //            cout << occlusion_gravity << "," << occlusion_direction << endl;
         }
@@ -256,6 +265,7 @@ namespace controller {
         if (state == Controller_state::Paused) {
             state = Controller_state::Playing;
             return true;
+
         }
         return false;
     }
