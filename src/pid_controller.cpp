@@ -9,16 +9,14 @@ namespace controller{
 
     Pid_outputs Pid_controller::process(const Pid_inputs &inputs, Behavior behavior) {
         double speed, P_value, I_value, D_value;
-        double t = timer.to_seconds(); //* 30;
+        double t = timer.to_seconds();
         timer.reset();
         if (behavior==Explore){
-            //cout << "E";
             speed = parameters.explore_speed;
             P_value = parameters.P_explore;
             I_value = parameters.I_explore;
             D_value = parameters.D_explore;
         } else {
-            //cout << "P";
             speed = parameters.pursue_speed;
             P_value = parameters.P_pursue;
             I_value = parameters.I_pursue;
@@ -33,19 +31,23 @@ namespace controller{
         normalized_error = normalize_error(error);
         error_derivative = (last_error - error)/t;
 
+        // TODO: tune this
         last_error = error;
         error_integral += error * t;
         // eliminate integral windup (100)
-        if (error_integral > 100) {
-            error_integral = 100;
-        } else if (error_integral < -100){
-            error_integral = -100;
+        if (error_integral > 10) {
+            error_integral = 10;
+        } else if (error_integral < -10){
+            error_integral = -10;
         }
 
         double adjustment = error * P_value - error_derivative * D_value + error_integral * I_value;
-        //cout << "INT E "<< error_integral << endl;
-        out.left =  normalized_error * speed * ( dist + 1 ) - adjustment;
-        out.right = normalized_error * speed * ( dist + 1 ) + adjustment;
+        cout << "ADJUSTMENT: "<< adjustment << endl;
+//        out.left =  normalized_error * speed * ( dist + 1 ) - adjustment;
+//        out.right = normalized_error * speed * ( dist + 1 ) + adjustment;
+        double dist_param = 1.0;
+        out.left =  normalized_error * speed * ( dist + dist_param) - adjustment;
+        out.right = normalized_error * speed * ( dist + dist_param) + adjustment;
         // catches outliers
         float max = abs(out.left);
         if (abs(out.right)>max) max = abs(out.right);
@@ -57,13 +59,17 @@ namespace controller{
             out.right *= RATIO;
             out.left *= RATIO;
         }
-        //cout << out.left << " " << out.right << " " << theta << " " << destination_theta << " " << dist << endl;
+//        cout << out.left << " " << out.right << " " << theta << " " << destination_theta << " " << dist << endl;
         return out;
     }
 
     double Pid_controller::normalize_error(double error){
-        double pi_err = M_PI * error / 2;
-        return 1 / ( pi_err * pi_err + 1 );
+        double pi_err =  M_PI * error / 2;
+
+//        double pi_err =  2 *M_PI * error ;
+//        return 0.5 / ( (pi_err * pi_err) + 1 );
+
+        return 1 / ( (pi_err * pi_err) + 1 );
     }
 
     Pid_controller::Pid_controller(const Pid_parameters &parameters): parameters(parameters) {
