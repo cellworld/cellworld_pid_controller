@@ -28,10 +28,10 @@ endif()
 
 
 string(APPEND CMAKE_CXX_FLAGS " -pthread ")
-install_git_dependency(Cellworld https://github.com/germanespinosa/cellworld
+install_git_dependency(Cellworld https://github.com/cellworld/cellworld
         CMAKE_PROJECT
         IMPORT_TARGETS cellworld json-cpp)
-install_git_dependency(Easy-tcp https://github.com/germanespinosa/easy-tcp
+install_git_dependency(Easy-tcp https://github.com/cellworld/dependency_easy-tcp
         CMAKE_PROJECT
         IMPORT_TARGETS easy-tcp)
 install_git_dependency(Tcp_messages https://github.com/cellworld/dependency_tcp-messages
