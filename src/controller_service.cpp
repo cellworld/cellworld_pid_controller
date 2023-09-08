@@ -103,7 +103,7 @@ namespace controller {
     Timer progress_timer(progress_time);
 
     void Controller_server::controller_process() {                      // setting robot velocity
-        set_occlusions("21_05"); // DELETE ONCE EXPERIMENT SERVER ON
+        //set_occlusions("21_05"); // DELETE ONCE EXPERIMENT SERVER ON
         state = Controller_state::Playing;
         Pid_inputs pi;
         Timer msg(1);
@@ -194,9 +194,9 @@ namespace controller {
     }
 
     #define goal_weight 0.0
-    #define occlusion_weight 0.0015 //0.0015
+    #define occlusion_weight 0.0075 //0.0015
     #define decay 2 //2 //5 //2
-    #define gravity_threshold .3
+    #define gravity_threshold .15
 
 
     double normalize_error(double error){
