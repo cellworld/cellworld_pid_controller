@@ -337,8 +337,8 @@ namespace controller {
                         controller_server->agent.set_right(0);
                         controller_server->agent.capture();
                         controller_server->agent.update();
-                        controller_server->agent.capture();
-                        controller_server->agent.update();
+                        //controller_server->agent.capture();
+                        //controller_server->agent.update();
                         controller_server->agent.end_capture();
                         controller_server->agent.update();
                         controller_server->send_capture(step.frame);
