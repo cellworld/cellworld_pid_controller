@@ -34,6 +34,8 @@ namespace controller{
         // TODO: tune this
         last_error = error;
         error_integral += error * t;
+//        cout << "Integral error: " << error_integral << endl;
+
         // eliminate integral windup (100)
         if (error_integral > 10) {
             error_integral = 10;
@@ -41,8 +43,9 @@ namespace controller{
             error_integral = -10;
         }
 
+
         double adjustment = error * P_value - error_derivative * D_value + error_integral * I_value;
-        cout << "ADJUSTMENT: "<< adjustment << endl;
+//        cout << "ADJUSTMENT: "<< adjustment << endl;
 //        out.left =  normalized_error * speed * ( dist + 1 ) - adjustment;
 //        out.right = normalized_error * speed * ( dist + 1 ) + adjustment;
         double dist_param = 1.0;

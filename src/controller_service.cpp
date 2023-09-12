@@ -108,33 +108,29 @@ namespace controller {
         Pid_inputs pi;
         Timer msg(1);
         bool human_intervention = false;
+        bool manual_enter = true;
         while(state != Controller_state::Stopped){
             robot_mtx.lock();
             if (this->tracking_client.capture.cool_down.time_out()){
             // if there is no information from the tracker
                 if (!tracking_client.agent.is_valid() ||  // leds will turn off when not connects
                     state == Controller_state::Paused ||
+                    agent.human_intervention ||
                     destination_timer.time_out()){
                     agent.set_left(0);
                     agent.set_right(0);
                     agent.update();
-                    // todo: add sleep here??
                     progress_timer.reset();
+                    if (agent.human_intervention && manual_enter) {
+                        cout << "MANUAL" << endl;
+                        manual_enter = false;
+                    }
                 } else {
                     //PID controller
+                    manual_enter = true;
                     pi.location = tracking_client.agent.step.location;
                     pi.rotation = tracking_client.agent.step.rotation;
                     auto theta_diff = to_degrees(angle_difference(to_radians(progress_marker_rotation),to_radians(pi.rotation)));
-//                    if (msg.time_out()) {
-//                        msg.reset();
-//                        cout << "progress_marker: " << progress_marker << endl;
-//                        cout << "location: " << pi.location << endl;
-//                        cout << "distance: " << pi.location.dist(progress_marker) << endl;
-//                        cout << "progress_marker_theta: " << progress_marker_theta << endl;
-//                        cout << "rotation: " << pi.rotation << endl;
-//                        cout << "diff: " << theta_diff << endl;
-//                        cout << "time since progress:" << progress_timer.to_seconds() << endl;
-//                    }
                     if (pi.location.dist(progress_marker_translation) > progress_translation ||
                             theta_diff > progress_rotation) {
                         progress_marker_rotation = pi.rotation;
@@ -158,8 +154,9 @@ namespace controller {
                         // change this so that dist is capture radius (dist < world.cell_transformation.size / 2)
                         // ((dist < world.cell_transformation.size / 2) || (behavior == Pursue  and dist <= world.cell_transformation.size * 2.5) || (tracking_client.adversary.timer.time_out()))
                         if ((behavior == Pursue  and dist <= world.cell_transformation.size * 2.5)) {  // for open field
+                            ;
 //                            cout << "DISTANCE CPP BUFFER: " << endl;
-                            cout << "IN CAPTURE RADIUS" << endl;
+//                            cout << "IN CAPTURE RADIUS" << endl;
 //                            progress_timer.reset();
 //                            agent.set_left(0);
 //                            agent.set_right(0);
