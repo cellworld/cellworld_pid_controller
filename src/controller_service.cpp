@@ -96,45 +96,38 @@ namespace controller {
 
 #define progress_translation 0.00675
 #define progress_rotation 2.5
-#define progress_time 0.5  // changed this for open field was 0.5  // open field 3.0
+#define progress_time 1.0  // changed this for field was 0.5  // open field 3.0
 
     Location progress_marker_translation;
     float progress_marker_rotation;
     Timer progress_timer(progress_time);
 
     void Controller_server::controller_process() {                      // setting robot velocity
-        set_occlusions("21_05"); // DELETE ONCE EXPERIMENT SERVER ON
+//        set_occlusions("21_05"); // DELETE ONCE EXPERIMENT SERVER ON
         state = Controller_state::Playing;
         Pid_inputs pi;
         Timer msg(1);
         bool human_intervention = false;
+
         while(state != Controller_state::Stopped){
             robot_mtx.lock();
             if (this->tracking_client.capture.cool_down.time_out()){
             // if there is no information from the tracker
                 if (!tracking_client.agent.is_valid() ||  // leds will turn off when not connects
                     state == Controller_state::Paused ||
+                    agent.human_intervention ||
                     destination_timer.time_out()){
+                    progress_timer.reset();
                     agent.set_left(0);
                     agent.set_right(0);
                     agent.update();
-                    // todo: add sleep here??
-                    progress_timer.reset();
+                    if (agent.human_intervention) cout << "manual" << endl;
                 } else {
                     //PID controller
                     pi.location = tracking_client.agent.step.location;
                     pi.rotation = tracking_client.agent.step.rotation;
                     auto theta_diff = to_degrees(angle_difference(to_radians(progress_marker_rotation),to_radians(pi.rotation)));
-//                    if (msg.time_out()) {
-//                        msg.reset();
-//                        cout << "progress_marker: " << progress_marker << endl;
-//                        cout << "location: " << pi.location << endl;
-//                        cout << "distance: " << pi.location.dist(progress_marker) << endl;
-//                        cout << "progress_marker_theta: " << progress_marker_theta << endl;
-//                        cout << "rotation: " << pi.rotation << endl;
-//                        cout << "diff: " << theta_diff << endl;
-//                        cout << "time since progress:" << progress_timer.to_seconds() << endl;
-//                    }
+                    // if moving update progress timer so collision not detected
                     if (pi.location.dist(progress_marker_translation) > progress_translation ||
                             theta_diff > progress_rotation) {
                         progress_marker_rotation = pi.rotation;
@@ -157,18 +150,19 @@ namespace controller {
                         auto dist = destination.dist(pi.location);
                         // change this so that dist is capture radius (dist < world.cell_transformation.size / 2)
                         // ((dist < world.cell_transformation.size / 2) || (behavior == Pursue  and dist <= world.cell_transformation.size * 2.5) || (tracking_client.adversary.timer.time_out()))
+                        // skip process so no I issues
                         if ((behavior == Pursue  and dist <= world.cell_transformation.size * 2.5)) {  // for open field
-//                            cout << "DISTANCE CPP BUFFER: " << endl;
                             cout << "IN CAPTURE RADIUS" << endl;
-//                            progress_timer.reset();
-//                            agent.set_left(0);
-//                            agent.set_right(0);
-//                            agent.update();
+                            progress_timer.reset();
+                            agent.set_left(0);
+                            agent.set_right(0);
+                            agent.update();
                         } else {
                             auto robot_command = pid_controller.process(pi, behavior);
                             //cout << robot_command.left << " " << robot_command.right << endl;
                             agent.set_left(robot_command.left);
                             agent.set_right(robot_command.right);
+                            // experiment has to be running check this later
                             if (agent.human_intervention!=human_intervention){
                                 agent.human_intervention = human_intervention;
                                 experiment_client.human_intervention(agent.human_intervention);

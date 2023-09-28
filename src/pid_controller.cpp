@@ -42,7 +42,7 @@ namespace controller{
         }
 
         double adjustment = error * P_value - error_derivative * D_value + error_integral * I_value;
-        cout << "ADJUSTMENT: "<< adjustment << endl;
+//        cout << "ADJUSTMENT: "<< adjustment << endl;
 //        out.left =  normalized_error * speed * ( dist + 1 ) - adjustment;
 //        out.right = normalized_error * speed * ( dist + 1 ) + adjustment;
         double dist_param = 1.0;
