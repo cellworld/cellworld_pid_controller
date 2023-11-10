@@ -300,7 +300,7 @@ namespace controller {
     }
 
     void Controller_server::Controller_tracking_client::on_step(const Step &step) {
-        if (!capture.cool_down.time_out() or !agent.is_valid()) return;        // TODO: check this MODIFIED CAPTURE SAFETY HERE
+        if (!capture.cool_down.time_out()) return;
         if (step.agent_name == agent.agent_name) {
             if (agent.last_update.to_seconds()>.1) {
                 controller_server->send_step(step);
@@ -329,7 +329,7 @@ namespace controller {
                 robot_mtx.lock();
                     auto is_captured = capture.is_captured( predator.location, to_radians(predator.rotation), step.location);
                     //controller_server.need_capture = true;
-                    if (is_captured) {
+                    if (is_captured and agent.is_valid()) {                                                     // TODO: check this MODIFIED CAPTURE SAFETY HERE
                         controller_server->agent.set_left(0);
                         controller_server->agent.set_right(0);
                         controller_server->agent.capture();
