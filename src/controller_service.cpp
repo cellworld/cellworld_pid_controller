@@ -103,7 +103,7 @@ namespace controller {
     Timer progress_timer(progress_time);
 
     void Controller_server::controller_process() {                      // setting robot velocity
-        set_occlusions("21_05"); // DELETE ONCE EXPERIMENT SERVER ON
+        //set_occlusions("21_05"); // DELETE ONCE EXPERIMENT SERVER ON
         state = Controller_state::Playing;
         Pid_inputs pi;
         Timer msg(1);
@@ -185,8 +185,7 @@ namespace controller {
     bool Controller_server::set_destination(const cell_world::Location &new_destination) {
         //cout << "New destination: " << new_destination << endl;
         destination = new_destination;
-//        experiment_client.set_agent_data("predator", new_destination.to_json());
-        destination_timer = Timer(5.0); // was 5 for Botevade, change to 1.0 for VR
+        destination_timer = Timer(5);
         new_destination_data = true;
         return true;
     }
@@ -194,7 +193,7 @@ namespace controller {
     #define goal_weight 0.0
     #define occlusion_weight 0.0075 //0.0015
     #define decay 2 //2 //5 //2
-    #define gravity_threshold .15 // 0.3
+    #define gravity_threshold .15
 
 
     double normalize_error(double error){
@@ -301,9 +300,7 @@ namespace controller {
     }
 
     void Controller_server::Controller_tracking_client::on_step(const Step &step) {
-//        cout << agent.is_valid() << endl;
-//        if (!agent.is_valid()) cout << "LOST ROBOT TRACKING" << " " <<agent.is_valid() << endl;
-        if (!capture.cool_down.time_out() ) return;
+        if (!capture.cool_down.time_out()) return;
         if (step.agent_name == agent.agent_name) {
             if (agent.last_update.to_seconds()>.1) {
                 controller_server->send_step(step);
@@ -332,9 +329,7 @@ namespace controller {
                 robot_mtx.lock();
                     auto is_captured = capture.is_captured( predator.location, to_radians(predator.rotation), step.location);
                     //controller_server.need_capture = true;
-
-                    if (is_captured and agent.is_valid()) {
-//                        cout << "Capture" << endl;
+                    if (is_captured) {
                         controller_server->agent.set_left(0);
                         controller_server->agent.set_right(0);
                         controller_server->agent.capture();
