@@ -103,7 +103,7 @@ namespace controller {
     Timer progress_timer(progress_time);
 
     void Controller_server::controller_process() {                      // setting robot velocity
-        //set_occlusions("21_05"); // DELETE ONCE EXPERIMENT SERVER ON
+//        set_occlusions("030_12_0063"); // DELETE ONCE EXPERIMENT SERVER ON
         state = Controller_state::Playing;
         Pid_inputs pi;
         Timer msg(1);
@@ -137,7 +137,7 @@ namespace controller {
                         progress_marker_translation = pi.location;
                         progress_timer.reset();
                     }
-                    if (progress_timer.time_out()){
+                    if (false){  // BACKUP I DONT WANT THIS (progress_timer.time_out() && destination.dist(pi.location) > .1)
                         cout << "I think I am stuck - backing up" << endl;
                         progress_timer.reset();
                         agent.set_left(-20);
@@ -187,6 +187,7 @@ namespace controller {
         destination = new_destination;
         destination_timer = Timer(5);
         new_destination_data = true;
+        progress_timer.reset();
         return true;
     }
 
@@ -308,7 +309,7 @@ namespace controller {
             }
             agent.step = step;
             agent.timer = Timer(.5);
-        } else if (step.agent_name == adversary.agent_name) {
+        } else if ((step.agent_name == adversary.agent_name) || (step.agent_name.starts_with("mouse"))) {
             adversary.step = step;
             adversary.timer = Timer(.5);
             if (contains_agent_state(agent.agent_name)) {
