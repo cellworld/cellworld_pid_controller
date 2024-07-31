@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <iostream>
 #include <mutex>
+#define NO_ROTATION -1000
 
 using namespace cell_world;
 using namespace tcp_messages;
@@ -14,6 +15,10 @@ namespace controller {
 
     bool Controller_service::set_destination(const cell_world::Location &location) {
         return ((Controller_server *) _server)->set_destination(location);
+    }
+
+    bool Controller_service::set_destination_with_rotation(const controller::Destination_with_rotation &destination) {
+        return ((Controller_server *) _server)->set_destination_with_rotation(destination);
     }
 
     bool Controller_service::stop_controller() {
@@ -84,7 +89,8 @@ namespace controller {
             experiment_client(experiment_client),
             robot_destination(robot_destination),
             robot_normalized_destination(robot_normalized_destination),
-            gravity_adjustment(gravity_adjustment)
+            gravity_adjustment(gravity_adjustment),
+            destination_rotation(NO_ROTATION)
     {
         tracking_client.controller_server = this;
         experiment_client.controller_server = this;
@@ -111,8 +117,9 @@ namespace controller {
         bool manual_enter = true;
         while(state != Controller_state::Stopped){
             robot_mtx.lock();
+
+            // if there is no information from the tracker robot wont move
             if (this->tracking_client.capture.cool_down.time_out()){
-            // if there is no information from the tracker
                 if (!tracking_client.agent.is_valid() ||  // leds will turn off when not connects
                     state == Controller_state::Paused ||
                     agent.human_intervention ||
@@ -125,12 +132,13 @@ namespace controller {
                         cout << "MANUAL" << endl;
                         manual_enter = false;
                     }
-                } else {
-                    //PID controller
+                } else { //PID controller
                     manual_enter = true;
                     pi.location = tracking_client.agent.step.location;
                     pi.rotation = tracking_client.agent.step.rotation;
                     auto theta_diff = to_degrees(angle_difference(to_radians(progress_marker_rotation),to_radians(pi.rotation)));
+
+                    // AUTO BACKUP
                     if (pi.location.dist(progress_marker_translation) > progress_translation ||
                             theta_diff > progress_rotation) {
                         progress_marker_rotation = pi.rotation;
@@ -148,19 +156,32 @@ namespace controller {
                         pi.rotation = tracking_client.agent.step.rotation;
                         progress_marker_rotation = pi.rotation;
                         progress_marker_translation = pi.location;
+
                     } else {
                         pi.destination = get_next_stop();
                         auto dist = destination.dist(pi.location);
-                        // change this so that dist is capture radius (dist < world.cell_transformation.size / 2)
-                        // ((dist < world.cell_transformation.size / 2) || (behavior == Pursue  and dist <= world.cell_transformation.size * 2.5) || (tracking_client.adversary.timer.time_out()))
-                        if ((behavior == Pursue  and dist <= world.cell_transformation.size * 2.5)) {  // for open field
-                            ;
-//                            cout << "DISTANCE CPP BUFFER: " << endl;
-//                            cout << "IN CAPTURE RADIUS" << endl;
-//                            progress_timer.reset();
-//                            agent.set_left(0);
-//                            agent.set_right(0);
-//                            agent.update();
+
+                        // slow rotation if close enough to ambush cell
+                        if (dist <= world.cell_transformation.size * 0.5 and destination_rotation != NO_ROTATION) {  // for open field
+                            cout << "CLOSE ENOUGH TO AMBUSH CELL SLOW ROTATION" << endl;
+                            // TODO: may need to normalize angle
+                            auto destination_theta = to_radians(destination_rotation);
+                            auto theta = to_radians(pi.rotation);
+                            auto error = angle_difference(theta, destination_theta);
+                            cout << "DIRECTION: " << direction(theta, destination_theta) << " ERROR: " << error << endl;
+                            cout << "DESTINATION ANGLE: " << destination_theta << " ACTUAL ANGLE" << pi.rotation << endl;
+                            if (error > 5.0){
+                                // spin slowly
+                                agent.set_left(10 * direction(theta, destination_theta)); // TODO: check this
+                                agent.set_right(-10 * direction(theta, destination_theta));
+                                if (direction(theta, destination_theta) > 0.0) cout << "SPIN CW" << endl;
+                                agent.update();
+                            } else {
+                                agent.set_left(0); // TODO: check this
+                                agent.set_right(0);
+                                agent.update();
+                            }
+                        // VANILLA PID
                         } else {
                             auto robot_command = pid_controller.process(pi, behavior);
                             //cout << robot_command.left << " " << robot_command.right << endl;
@@ -187,11 +208,22 @@ namespace controller {
         destination = new_destination;
         destination_timer = Timer(5);
         new_destination_data = true;
+        destination_rotation = NO_ROTATION;
         progress_timer.reset();
         return true;
     }
 
-    #define goal_weight 0.0
+    bool Controller_server::set_destination_with_rotation(const Destination_with_rotation &new_destination) {
+        destination = new_destination.location;
+        destination_timer = Timer(5);
+        new_destination_data = true;
+        destination_rotation = new_destination.rotation;
+        progress_timer.reset();
+        return true;
+    }
+
+
+#define goal_weight 0.0
     #define occlusion_weight 0.0075 //0.0015
     #define decay 2 //2 //5 //2
     #define gravity_threshold .15

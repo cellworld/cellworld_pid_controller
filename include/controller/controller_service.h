@@ -15,9 +15,22 @@ namespace controller {
         Paused
     };
 
+    struct Destination_with_rotation : json_cpp::Json_object {
+        Destination_with_rotation():
+        location(0,0),
+        rotation(0) {}
+        cell_world::Location location;
+        float rotation;
+        Json_object_members({
+                                Add_member(location);
+                                Add_member(rotation);
+                            })
+    };
+
     struct Controller_service : tcp_messages::Message_service {
         Routes (
             Add_route_with_response("set_destination", set_destination, cell_world::Location);
+            Add_route_with_response("set_destination_with_rotation", set_destination_with_rotation, Destination_with_rotation);
             Add_route_with_response("stop", stop_controller);
             Add_route_with_response("pause", pause_controller);
             Add_route_with_response("resume", resume_controller);
@@ -26,6 +39,7 @@ namespace controller {
         );
 
         bool set_destination(const cell_world::Location &);
+        bool set_destination_with_rotation(const Destination_with_rotation &);
         bool stop_controller();
         bool pause_controller();
         bool resume_controller();
@@ -53,6 +67,7 @@ namespace controller {
         void send_step(const cell_world::Step &);
         void send_capture(int);
         bool set_destination(const cell_world::Location &);
+        bool set_destination_with_rotation(const Destination_with_rotation &);
         bool pause();
         bool resume();
         void set_occlusions(const std::string &occlusions, float margin = .45);
@@ -137,6 +152,7 @@ namespace controller {
         void set_occlusions(cell_world::Cell_group &);
 
         cell_world::Location destination;
+        float destination_rotation;
         cell_world::Timer destination_timer;
         bool new_destination_data;
         std::atomic<Controller_state> state;
