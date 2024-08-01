@@ -162,18 +162,20 @@ namespace controller {
                         auto dist = destination.dist(pi.location);
 
                         // slow rotation if close enough to ambush cell
+//                        if (false){
                         if (dist <= world.cell_transformation.size * 0.5 and destination_rotation != NO_ROTATION) {  // for open field
-                            cout << "CLOSE ENOUGH TO AMBUSH CELL SLOW ROTATION" << endl;
-                            // TODO: may need to normalize angle
                             auto destination_theta = to_radians(destination_rotation);
                             auto theta = to_radians(pi.rotation);
-                            auto error = angle_difference(theta, destination_theta);
-                            cout << "DIRECTION: " << direction(theta, destination_theta) << " ERROR: " << error << endl;
-                            cout << "DESTINATION ANGLE: " << destination_theta << " ACTUAL ANGLE" << pi.rotation << endl;
-                            if (error > 5.0){
+                            auto error = to_degrees(angle_difference(theta, destination_theta));
+
+                            cout << " ERROR: " << error << endl;
+                            if (error > 10.0){
                                 // spin slowly
-                                agent.set_left(10 * direction(theta, destination_theta)); // TODO: check this
-                                agent.set_right(-10 * direction(theta, destination_theta));
+                                cout << -1 * direction(theta, destination_theta) << endl;
+//                                agent.set_left(0); // TODO: check this
+//                                agent.set_right(0);
+                                agent.set_left( -0.1 * direction(theta, destination_theta)); // TODO: check this
+                                agent.set_right(0.1 * direction(theta, destination_theta));
                                 if (direction(theta, destination_theta) > 0.0) cout << "SPIN CW" << endl;
                                 agent.update();
                             } else {
