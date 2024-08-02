@@ -216,6 +216,7 @@ namespace controller {
     }
 
     bool Controller_server::set_destination_with_rotation(const Destination_with_rotation &new_destination) {
+        // TODO: actually just if destination rotation != NO_ROTATION
         destination = new_destination.location;
         destination_timer = Timer(5);
         new_destination_data = true;
@@ -335,6 +336,11 @@ namespace controller {
     }
 
     void Controller_server::Controller_tracking_client::on_step(const Step &step) {
+        // Accessing destination_rotation value
+        if (controller_server->destination_rotation != NO_ROTATION) {
+            std::cout << "Destination Rotation: " << controller_server->destination_rotation << std::endl;
+        }
+
         if (!capture.cool_down.time_out()) return;
         if (step.agent_name == agent.agent_name) {
             if (agent.last_update.to_seconds()>.1) {
