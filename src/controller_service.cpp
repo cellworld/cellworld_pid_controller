@@ -337,10 +337,7 @@ namespace controller {
 
     void Controller_server::Controller_tracking_client::on_step(const Step &step) {
         // Accessing destination_rotation value
-        if (controller_server->destination_rotation != NO_ROTATION) {
-            std::cout << "Destination Rotation: " << controller_server->destination_rotation << std::endl;
-        }
-
+        // TODO: refine this to be more elegant like send robot behavior type: ambush
         if (!capture.cool_down.time_out()) return;
         if (step.agent_name == agent.agent_name) {
             if (agent.last_update.to_seconds()>.1) {
@@ -355,13 +352,24 @@ namespace controller {
             if (contains_agent_state(agent.agent_name)) {
                 auto predator = get_current_state(agent.agent_name);
 
+                // if prey is visible to predator
                 if (visibility.is_visible(predator.location, step.location) &&
                     to_degrees(angle_difference(predator.location.atan(step.location), to_radians(predator.rotation))) < view_angle / 2) {
+                    // if prey is not peeking
                     if (peeking.is_seen(predator.location, step.location)) {
+                        // if last update occurred > 0.1
                         if (adversary.last_update.to_seconds()>.1) {
                             controller_server->send_step(step);
                             adversary.last_update.reset();
                         }
+                    }
+                // if prey not visible but in ambush zone and predator behavior is ambush
+                } else if (controller_server->destination_rotation != NO_ROTATION){
+                    // if last update occurred > 0.1
+                    std::cout << "Destination Rotation: " << controller_server->destination_rotation << std::endl;
+                    if (adversary.last_update.to_seconds()>.1) {
+                        controller_server->send_step(step);
+                        adversary.last_update.reset();
                     }
                 } else {
                     peeking.not_visible();
