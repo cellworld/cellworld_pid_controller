@@ -3,6 +3,7 @@
 #include <iostream>
 #include <mutex>
 #define NO_ROTATION -1000
+#define SURGE_ROTATION -2000
 
 using namespace cell_world;
 using namespace tcp_messages;
@@ -163,7 +164,7 @@ namespace controller {
 
                         // slow rotation if close enough to ambush cell
 //                        if (false){
-                        if (dist <= world.cell_transformation.size * 0.5 and destination_rotation != NO_ROTATION) {  // for open field
+                        if (dist <= world.cell_transformation.size * 0.5 and destination_rotation != NO_ROTATION and destination_rotation != SURGE_ROTATION) {  // for open field
                             auto destination_theta = to_radians(destination_rotation);
                             auto theta = to_radians(pi.rotation);
                             auto error = to_degrees(angle_difference(theta, destination_theta));
