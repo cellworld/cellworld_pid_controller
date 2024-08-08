@@ -110,7 +110,7 @@ namespace controller {
     Timer progress_timer(progress_time);
 
     void Controller_server::controller_process() {                      // setting robot velocity
-//        set_occlusions("030_12_0063"); // DELETE ONCE EXPERIMENT SERVER ON
+        set_occlusions("21_05"); // DELETE ONCE EXPERIMENT SERVER ON
         state = Controller_state::Playing;
         Pid_inputs pi;
         Timer msg(1);
@@ -221,6 +221,7 @@ namespace controller {
         destination = new_destination.location;
         destination_timer = Timer(5);
         new_destination_data = true;
+        cout << "SET ROTATION " << new_destination.rotation << endl;
         destination_rotation = new_destination.rotation;
         progress_timer.reset();
         return true;
