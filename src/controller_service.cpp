@@ -228,8 +228,8 @@ namespace controller {
     }
 
 
-#define goal_weight 0.0
-    #define occlusion_weight 0.0075 //0.0015
+    #define goal_weight 0.0
+    #define occlusion_weight 0.0015 //0.0015
     #define decay 2 //2 //5 //2
     #define gravity_threshold .15
 
