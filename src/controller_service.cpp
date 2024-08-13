@@ -5,6 +5,7 @@
 #define NO_ROTATION -1000
 #define SURGE_ROTATION -2000
 
+
 using namespace cell_world;
 using namespace tcp_messages;
 using namespace std;
@@ -368,8 +369,9 @@ namespace controller {
                             adversary.last_update.reset();
                         }
                     }
-                // if prey not visible but in ambush zone and predator behavior is ambush
-                } else if (controller_server->destination_rotation != NO_ROTATION){
+                // if prey not visible and predator script is ambush
+                // TODO: check this
+                } else if (controller_server->destination_rotation != NO_ROTATION and step.location.dist(controller_server->destination) < 0.054 * 4){
                     // if last update occurred > 0.1
                     std::cout << "Destination Rotation: " << controller_server->destination_rotation << std::endl;
                     if (adversary.last_update.to_seconds()>.1) {
