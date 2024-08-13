@@ -164,30 +164,33 @@ namespace controller {
 
                         // slow rotation if close enough to ambush cell
 //                        if (false){
-                        if (dist <= world.cell_transformation.size * 0.5 and destination_rotation != NO_ROTATION and destination_rotation != SURGE_ROTATION) {  // for open field
+                        if ((dist <= world.cell_transformation.size * 0.55) and destination_rotation != NO_ROTATION and destination_rotation != SURGE_ROTATION) {  // for open field
                             auto destination_theta = to_radians(destination_rotation);
                             auto theta = to_radians(pi.rotation);
                             auto error = to_degrees(angle_difference(theta, destination_theta));
 
-                            cout << " ERROR: " << error << endl;
+                            cout << " HEADING ERROR: " << error << endl;
                             if (error > 10.0){
                                 // spin slowly
-                                cout << -1 * direction(theta, destination_theta) << endl;
+
 //                                agent.set_left(0); // TODO: check this
 //                                agent.set_right(0);
-                                agent.set_left( -0.1 * direction(theta, destination_theta)); // TODO: check this
+                                agent.set_left(-0.1* direction(theta, destination_theta)); // TODO: check this
                                 agent.set_right(0.1 * direction(theta, destination_theta));
-                                if (direction(theta, destination_theta) > 0.0) cout << "SPIN CW" << endl;
+//                                if (direction(theta, destination_theta) > 0.0) cout << "SPIN CW" << endl;
                                 agent.update();
                             } else {
+                                cout << "REACHED PAUSE" << endl;
                                 agent.set_left(0); // TODO: check this
                                 agent.set_right(0);
                                 agent.update();
+                                state = Controller_state::Paused; // TODO: check this
                             }
                         // VANILLA PID
                         } else {
                             auto robot_command = pid_controller.process(pi, behavior);
-                            //cout << robot_command.left << " " << robot_command.right << endl;
+//                            cout << robot_command.left << " " << robot_command.right << endl;
+                            cout << (dist <= world.cell_transformation.size * 2.0) << (destination_rotation != NO_ROTATION) << (destination_rotation != SURGE_ROTATION) << endl;
                             agent.set_left(robot_command.left);
                             agent.set_right(robot_command.right);
                             if (agent.human_intervention!=human_intervention){
@@ -229,7 +232,7 @@ namespace controller {
 
 
     #define goal_weight 0.0
-    #define occlusion_weight 0.0015 //0.0015
+    #define occlusion_weight 0.0025 //0.0015
     #define decay 2 //2 //5 //2
     #define gravity_threshold .15
 
