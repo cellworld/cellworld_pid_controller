@@ -235,7 +235,7 @@ namespace controller {
     #define goal_weight 0.0
     #define occlusion_weight 0.0025 //0.0015
     #define decay 2 //2 //5 //2
-    #define gravity_threshold .15
+    #define gravity_threshold .175
 
 
     double normalize_error(double error){
