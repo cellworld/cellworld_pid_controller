@@ -2,14 +2,13 @@
 #include <filesystem>
 #include <iostream>
 #include <mutex>
-#define NO_ROTATION -1000
-#define SURGE_ROTATION -2000
-
+#define NOLOCATION cell_world::Location(-1000,-1000)
 
 using namespace cell_world;
 using namespace tcp_messages;
 using namespace std;
 using namespace json_cpp;
+
 
 namespace controller {
     mutex robot_mtx;
@@ -19,11 +18,12 @@ namespace controller {
         return ((Controller_server *) _server)->set_destination(location);
     }
 
-    bool Controller_service::set_destination_with_rotation(const controller::Destination_with_rotation &destination) {
-        return ((Controller_server *) _server)->set_destination_with_rotation(destination);
+    bool Controller_service::stop_controller() {
+        return true;
     }
 
-    bool Controller_service::stop_controller() {
+    bool Controller_service::arm() {
+        ((Controller_server *) _server)->arm();
         return true;
     }
 
@@ -61,14 +61,16 @@ namespace controller {
     Controller_server::Controller_server(const string &pid_config_file_path,
                                          Agent &agent,
                                          Controller_tracking_client &tracking_client,
-                                         Controller_experiment_client &experiment_client):
+                                         Controller_experiment_client &experiment_client,
+                                         bool manually_armed):
             Controller_server(pid_config_file_path,
                               agent,
                               tracking_client,
                               experiment_client,
                               local_robot_destination,
                               local_robot_normalized_destination,
-                              local_gravity_adjustment) {}
+                              local_gravity_adjustment,
+                              manually_armed) {}
 
     Controller_server::Controller_server(const string &pid_config_file_path,
                                          Agent &agent,
@@ -76,7 +78,8 @@ namespace controller {
                                          Controller_experiment_client &experiment_client,
                                          Location &robot_destination,
                                          Location &robot_normalized_destination,
-                                         Location &gravity_adjustment):
+                                         Location &gravity_adjustment,
+                                         bool manually_armed):
             agent(agent),
             world(World::get_from_parameters_name("hexagonal", "canonical")),  // delete specified occludiond
             world_paths(World::get_from_parameters_name("hexagonal", "canonical")),
@@ -92,7 +95,8 @@ namespace controller {
             robot_destination(robot_destination),
             robot_normalized_destination(robot_normalized_destination),
             gravity_adjustment(gravity_adjustment),
-            destination_rotation(NO_ROTATION)
+            armed(false),
+            manually_armed(manually_armed)
     {
         tracking_client.controller_server = this;
         experiment_client.controller_server = this;
@@ -111,17 +115,19 @@ namespace controller {
     Timer progress_timer(progress_time);
 
     void Controller_server::controller_process() {                      // setting robot velocity
-        set_occlusions("21_05"); // DELETE ONCE EXPERIMENT SERVER ON
+        //set_occlusions("21_05"); // DELETE ONCE EXPERIMENT SERVER ON
         state = Controller_state::Playing;
         Pid_inputs pi;
         Timer msg(1);
         bool human_intervention = false;
         bool manual_enter = true;
+        if (!manually_armed) {
+            armed = true;
+        }
         while(state != Controller_state::Stopped){
             robot_mtx.lock();
-
-            // if there is no information from the tracker robot wont move
             if (this->tracking_client.capture.cool_down.time_out()){
+                // if there is no information from the tracker
                 if (!tracking_client.agent.is_valid() ||  // leds will turn off when not connects
                     state == Controller_state::Paused ||
                     agent.human_intervention ||
@@ -134,71 +140,58 @@ namespace controller {
                         cout << "MANUAL" << endl;
                         manual_enter = false;
                     }
-                } else { //PID controller
-                    manual_enter = true;
-                    pi.location = tracking_client.agent.step.location;
-                    pi.rotation = tracking_client.agent.step.rotation;
-                    auto theta_diff = to_degrees(angle_difference(to_radians(progress_marker_rotation),to_radians(pi.rotation)));
-
-                    // AUTO BACKUP
-                    if (pi.location.dist(progress_marker_translation) > progress_translation ||
-                            theta_diff > progress_rotation) {
-                        progress_marker_rotation = pi.rotation;
-                        progress_marker_translation = pi.location;
-                        progress_timer.reset();
-                    }
-                    if (false){  // BACKUP I DONT WANT THIS (progress_timer.time_out() && destination.dist(pi.location) > .1)
-                        cout << "I think I am stuck - backing up" << endl;
-                        progress_timer.reset();
-                        agent.set_left(-20);
-                        agent.set_right(-20);
+                } else {
+                    if (destination == NOLOCATION) {
+                        agent.set_left(0);
+                        agent.set_right(0);
                         agent.update();
-                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    } else {
+                        //PID controller
+                        manual_enter = true;
                         pi.location = tracking_client.agent.step.location;
                         pi.rotation = tracking_client.agent.step.rotation;
-                        progress_marker_rotation = pi.rotation;
-                        progress_marker_translation = pi.location;
-
-                    } else {
-                        pi.destination = get_next_stop();
-                        auto dist = destination.dist(pi.location);
-
-                        // slow rotation if close enough to ambush cell
-//                        if (false){
-                        if ((dist <= world.cell_transformation.size * 0.55) and destination_rotation != NO_ROTATION and destination_rotation != SURGE_ROTATION) {  // for open field
-                            auto destination_theta = to_radians(destination_rotation);
-                            auto theta = to_radians(pi.rotation);
-                            auto error = to_degrees(angle_difference(theta, destination_theta));
-
-                            cout << " HEADING ERROR: " << error << endl;
-                            if (error > 10.0){
-                                // spin slowly
-
-//                                agent.set_left(0); // TODO: check this
-//                                agent.set_right(0);
-                                agent.set_left(-0.1* direction(theta, destination_theta)); // TODO: check this
-                                agent.set_right(0.1 * direction(theta, destination_theta));
-//                                if (direction(theta, destination_theta) > 0.0) cout << "SPIN CW" << endl;
-                                agent.update();
-                            } else {
-                                cout << "REACHED PAUSE" << endl;
-                                agent.set_left(0); // TODO: check this
-                                agent.set_right(0);
-                                agent.update();
-                                state = Controller_state::Paused; // TODO: check this
-                            }
-                        // VANILLA PID
-                        } else {
-                            auto robot_command = pid_controller.process(pi, behavior);
-//                            cout << robot_command.left << " " << robot_command.right << endl;
-                            cout << (dist <= world.cell_transformation.size * 2.0) << (destination_rotation != NO_ROTATION) << (destination_rotation != SURGE_ROTATION) << endl;
-                            agent.set_left(robot_command.left);
-                            agent.set_right(robot_command.right);
-                            if (agent.human_intervention!=human_intervention){
-                                agent.human_intervention = human_intervention;
-                                experiment_client.human_intervention(agent.human_intervention);
-                            }
+                        auto theta_diff = to_degrees(angle_difference(to_radians(progress_marker_rotation),to_radians(pi.rotation)));
+                        if (pi.location.dist(progress_marker_translation) > progress_translation ||
+                            theta_diff > progress_rotation) {
+                            progress_marker_rotation = pi.rotation;
+                            progress_marker_translation = pi.location;
+                            progress_timer.reset();
+                        }
+                        if (progress_timer.time_out()){
+                            cout << "I think I am stuck - backing up" << endl;
+                            progress_timer.reset();
+                            agent.set_left(-10);
+                            agent.set_right(-10);
                             agent.update();
+                            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                            pi.location = tracking_client.agent.step.location;
+                            pi.rotation = tracking_client.agent.step.rotation;
+                            progress_marker_rotation = pi.rotation;
+                            progress_marker_translation = pi.location;
+                        } else {
+                            pi.destination = get_next_stop();
+                            auto dist = destination.dist(pi.location);
+                            // change this so that dist is capture radius (dist < world.cell_transformation.size / 2)
+                            // ((dist < world.cell_transformation.size / 2) || (behavior == Pursue  and dist <= world.cell_transformation.size * 2.5) || (tracking_client.adversary.timer.time_out()))
+                            if ((behavior == Pursue  and dist <= world.cell_transformation.size * 2.5)) {  // for open field
+                                ;
+                                //                            cout << "DISTANCE CPP BUFFER: " << endl;
+                                //                            cout << "IN CAPTURE RADIUS" << endl;
+                                //                            progress_timer.reset();
+                                //                            agent.set_left(0);
+                                //                            agent.set_right(0);
+                                //                            agent.update();
+                            } else {
+                                auto robot_command = pid_controller.process(pi, behavior);
+                                //cout << robot_command.left << " " << robot_command.right << endl;
+                                agent.set_left(robot_command.left);
+                                agent.set_right(robot_command.right);
+                                if (agent.human_intervention!=human_intervention){
+                                    agent.human_intervention = human_intervention;
+                                    experiment_client.human_intervention(agent.human_intervention);
+                                }
+                                agent.update();
+                            }
                         }
                     }
                 }
@@ -215,27 +208,13 @@ namespace controller {
         destination = new_destination;
         destination_timer = Timer(5);
         new_destination_data = true;
-        destination_rotation = NO_ROTATION;
-        progress_timer.reset();
         return true;
     }
 
-    bool Controller_server::set_destination_with_rotation(const Destination_with_rotation &new_destination) {
-        // TODO: actually just if destination rotation != NO_ROTATION
-        destination = new_destination.location;
-        destination_timer = Timer(5);
-        new_destination_data = true;
-        cout << "SET ROTATION " << new_destination.rotation << endl;
-        destination_rotation = new_destination.rotation;
-        progress_timer.reset();
-        return true;
-    }
-
-
-    #define goal_weight 0.0
-    #define occlusion_weight 0.0025 //0.0015
-    #define decay 2 //2 //5 //2
-    #define gravity_threshold .175
+#define goal_weight 0.0
+#define occlusion_weight 0.0025 //0.0075 //0.0015
+#define decay 2 //2 //5 //2
+#define gravity_threshold 0.175 //.15
 
 
     double normalize_error(double error){
@@ -333,6 +312,10 @@ namespace controller {
         return true;
     }
 
+    void Controller_server::arm(){
+        armed = true;
+    }
+
     void Controller_server::send_capture(int frame) {
         experiment_client.capture(frame);
     }
@@ -342,9 +325,9 @@ namespace controller {
     }
 
     void Controller_server::Controller_tracking_client::on_step(const Step &step) {
-        // Accessing destination_rotation value
-        // TODO: refine this to be more elegant like send robot behavior type: ambush
+        // this basically ignores all updates while the puff is cooling down
         if (!capture.cool_down.time_out()) return;
+
         if (step.agent_name == agent.agent_name) {
             if (agent.last_update.to_seconds()>.1) {
                 controller_server->send_step(step);
@@ -352,51 +335,46 @@ namespace controller {
             }
             agent.step = step;
             agent.timer = Timer(.5);
-        } else if ((step.agent_name == adversary.agent_name) || (step.agent_name.starts_with("mouse"))) {
+        } else if (step.agent_name == adversary.agent_name) {
             adversary.step = step;
             adversary.timer = Timer(.5);
             if (contains_agent_state(agent.agent_name)) {
                 auto predator = get_current_state(agent.agent_name);
 
-                // if prey is visible to predator
                 if (visibility.is_visible(predator.location, step.location) &&
                     to_degrees(angle_difference(predator.location.atan(step.location), to_radians(predator.rotation))) < view_angle / 2) {
-                    // if prey is not peeking
                     if (peeking.is_seen(predator.location, step.location)) {
-                        // if last update occurred > 0.1
                         if (adversary.last_update.to_seconds()>.1) {
                             controller_server->send_step(step);
                             adversary.last_update.reset();
                         }
                     }
-                // if prey not visible and predator script is ambush
-                // TODO: check this
-                } else if (controller_server->destination_rotation != NO_ROTATION and step.location.dist(controller_server->destination) < 0.054 * 4){
-                    // if last update occurred > 0.1
-                    std::cout << "Destination Rotation: " << controller_server->destination_rotation << std::endl;
-                    if (adversary.last_update.to_seconds()>.1) {
-                        controller_server->send_step(step);
-                        adversary.last_update.reset();
-                    }
                 } else {
                     peeking.not_visible();
                 }
 
-                robot_mtx.lock();
-                    auto is_captured = capture.is_captured( predator.location, to_radians(predator.rotation), step.location);
+                if (controller_server->armed) {
+                    robot_mtx.lock();
+                    auto is_captured = capture.is_captured(predator.location, to_radians(predator.rotation),
+                                                           step.location);
                     //controller_server.need_capture = true;
-                    if (is_captured) {
+                    if (is_captured and agent.is_valid()) {
+                        if (controller_server->manually_armed) {
+                            controller_server->armed = false;
+                        }
+                        // TODO: check this MODIFIED CAPTURE SAFETY HERE
+                        controller_server->destination = NOLOCATION;
                         controller_server->agent.set_left(0);
                         controller_server->agent.set_right(0);
                         controller_server->agent.capture();
                         controller_server->agent.update();
-                        //controller_server->agent.capture();
-                        //controller_server->agent.update();
                         controller_server->agent.end_capture();
                         controller_server->agent.update();
                         controller_server->send_capture(step.frame);
+                        controller_server->destination = NOLOCATION;
                     }
-                robot_mtx.unlock();
+                    robot_mtx.unlock();
+                }
             }
         }
         Tracking_client::on_step(step);

@@ -15,32 +15,20 @@ namespace controller {
         Paused
     };
 
-    struct Destination_with_rotation : json_cpp::Json_object {
-        Destination_with_rotation():
-        location(0,0),
-        rotation(0) {}
-        cell_world::Location location;
-        float rotation;
-        Json_object_members({
-                                Add_member(location);
-                                Add_member(rotation);
-                            })
-    };
-
     struct Controller_service : tcp_messages::Message_service {
         Routes (
-            Add_route_with_response("set_destination", set_destination, cell_world::Location);
-            Add_route_with_response("set_destination_with_rotation", set_destination_with_rotation, Destination_with_rotation);
-            Add_route_with_response("stop", stop_controller);
-            Add_route_with_response("pause", pause_controller);
-            Add_route_with_response("resume", resume_controller);
-            Add_route_with_response("set_behavior", set_behavior, int);
-            Allow_subscription();
+                Add_route_with_response("set_destination", set_destination, cell_world::Location);
+                Add_route_with_response("stop", stop_controller);
+                Add_route_with_response("arm", arm);
+                Add_route_with_response("pause", pause_controller);
+                Add_route_with_response("resume", resume_controller);
+                Add_route_with_response("set_behavior", set_behavior, int);
+                Allow_subscription();
         );
 
         bool set_destination(const cell_world::Location &);
-        bool set_destination_with_rotation(const Destination_with_rotation &);
         bool stop_controller();
+        bool arm();
         bool pause_controller();
         bool resume_controller();
         bool set_behavior(int);
@@ -51,7 +39,7 @@ namespace controller {
 
     struct Agent_data{
         Agent_data (const std::string &agent_name) :
-        agent_name(agent_name) {
+                agent_name(agent_name) {
             step.agent_name = agent_name;
         }
         std::string agent_name;
@@ -67,7 +55,6 @@ namespace controller {
         void send_step(const cell_world::Step &);
         void send_capture(int);
         bool set_destination(const cell_world::Location &);
-        bool set_destination_with_rotation(const Destination_with_rotation &);
         bool pause();
         bool resume();
         void set_occlusions(const std::string &occlusions, float margin = .45);
@@ -83,11 +70,11 @@ namespace controller {
 
         struct Controller_tracking_client : agent_tracking::Tracking_client {
             Controller_tracking_client(cell_world::Location_visibility &visibility,
-                               float view_angle,
-                               cell_world::Capture &capture,
-                               cell_world::Peeking &peeking,
-                               const std::string &agent_name,
-                               const std::string &adversary_name);
+                                       float view_angle,
+                                       cell_world::Capture &capture,
+                                       cell_world::Peeking &peeking,
+                                       const std::string &agent_name,
+                                       const std::string &adversary_name);
             Controller_tracking_client(cell_world::World,
                                        float view_angle,
                                        const std::string &agent_name,
@@ -105,7 +92,8 @@ namespace controller {
         Controller_server(const std::string &pid_config_file_path,
                           Agent &,
                           Controller_tracking_client &,
-                          Controller_experiment_client &);
+                          Controller_experiment_client &,
+                          bool);
 
         Controller_server(const std::string &pid_config_file_path,
                           Agent &,
@@ -113,10 +101,12 @@ namespace controller {
                           Controller_experiment_client &,
                           cell_world::Location &robot_destination,
                           cell_world::Location &robot_normalized_destination,
-                          cell_world::Location &gravity_adjustment);
+                          cell_world::Location &gravity_adjustment,
+                          bool);
 
 
         void controller_process();
+        void arm();
         cell_world::Location get_next_stop();
 
         template< typename T, typename... Ts>
@@ -152,7 +142,6 @@ namespace controller {
         void set_occlusions(cell_world::Cell_group &);
 
         cell_world::Location destination;
-        float destination_rotation;
         cell_world::Timer destination_timer;
         bool new_destination_data;
         std::atomic<Controller_state> state;
@@ -175,6 +164,8 @@ namespace controller {
         cell_world::Location local_robot_destination;
         cell_world::Location local_robot_normalized_destination;
         cell_world::Location local_gravity_adjustment;
+        bool armed;
+        bool manually_armed;
 
     };
 }
