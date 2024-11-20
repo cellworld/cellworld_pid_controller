@@ -115,7 +115,7 @@ namespace controller {
     Timer progress_timer(progress_time);
 
     void Controller_server::controller_process() {                      // setting robot velocity
-        //set_occlusions("21_05"); // DELETE ONCE EXPERIMENT SERVER ON
+        //set_occlusions("oasis_island10_02"); // DELETE ONCE EXPERIMENT SERVER ON
         state = Controller_state::Playing;
         Pid_inputs pi;
         Timer msg(1);
@@ -234,13 +234,17 @@ namespace controller {
         if (navigability.is_visible(agent_location, destination)) {
             next_stop = destination_cell_index;
         } else {
+            cout << endl;
             while (navigability.is_visible(agent_location, free_cells[next_stop_test].location)) {
                 next_stop = next_stop_test;
                 auto move = paths.get_move(free_cells[next_stop], free_cells[destination_cell_index]);
 
                 if (move == Move{0, 0}) break;
-                next_stop_test = free_cells.find(map[free_cells[next_stop].coordinates + move]);
+                auto next_coordinates = map[free_cells[next_stop].coordinates + move];
+                cout << next_coordinates << endl;
+                next_stop_test = free_cells.find(next_coordinates);
             }
+            cout << endl;
         }
         robot_destination = free_cells[next_stop].location;
         auto destination_theta = agent_location.atan(robot_destination);
